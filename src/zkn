@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+source "$(dirname "$(dirname "$(realpath "$0")")")/lib/files.sh"
+source "$(dirname "$(dirname "$(realpath "$0")")")/lib/text.sh"
+source "$(dirname "$(dirname "$(realpath "$0")")")/lib/variables.sh"
+
+function zkn() {
+  local file=$1
+  local zk_workspace=$2
+  [[ -z "$file" ]] && {
+    echo "Error: No file specified!"
+    exit 1
+  }
+  [[ -z "$zk_workspace" ]] && zk_workspace=$(display_workspaces | fzf --preview "if [[ -d {+} ]]; then eza -la $ZK_PATH/{}; elif [[ -f {+} ]]; then bat $ZK_PATH/{1}; fi")
+  touch "$zk_workspace/$file.md" && $EDITOR "$file.md"
+}
+
+if [[ "$(basename "$0")" =~ zkn$ ]]; then
+  zkn "$@"
+fi

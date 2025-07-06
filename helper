@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+
+SCRIPT_FILES=('zk' 'zkn' 'zkf')
+LIB_FILES=('variables.sh')
+
+function help() {
+  cat <<EOF
+ZK Helper
+
+Usage:
+  helper COMMAND
+  helper -h | install.sh help
+
+Commands:
+  help                  Displays this message and exits
+  install               Install ZK
+  uninstall             Uninstall ZK
+EOF
+}
+
+function _install() {
+  local xdg_local="$HOME/.local/"
+  mkdir -p "$xdg_local/bin" "$xdg_local/lib"
+  chmod +x src/ lib/
+  mv src/** "$xdg_local/bin"
+  mv lib/** "$xdg_local/lib"
+}
+
+function _uninstall() {
+  local script
+  local xdg_local="$HOME/.local/"
+  for script in "${SCRIPT_FILES[@]}"; do
+    rm "$xdg_local/$script"
+  done
+  for lib in "${LIB_FILES[@]}"; do
+    rm "$xdg_local/$lib"
+  done
+}
+
+case "$1" in
+help)
+  help
+  exit 0
+  ;;
+install)
+  _install
+  exit 0
+  ;;
+uninstall)
+  _uninstall
+  exit 0
+  ;;
+*)
+  help
+  exit 0
+  ;;
+esac

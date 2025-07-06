@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+
+source "$(dirname "$(dirname "$(realpath "$0")")")/lib/files.sh"
+source "$(dirname "$(dirname "$(realpath "$0")")")/lib/text.sh"
+source "$(dirname "$(dirname "$(realpath "$0")")")/lib/variables.sh"
+
+function zk() {
+  if [[ "$DIR" -eq 1 ]]; then
+    display_workspaces
+  else
+    display_all_files
+  fi
+}
+
+while getopts ":hd" opt; do
+  case "$opt" in
+  h)
+    help
+    exit 0
+    ;;
+  d)
+    DIR=1
+    ;;
+  ?)
+    _text "$RED" "Error: Invalid option '-$OPTARG'" >&2
+    exit 1
+    ;;
+  esac
+done
+
+shift $((OPTIND - 1))
+
+if [[ "$(basename "$0")" =~ zk$ ]]; then
+  zk
+fi

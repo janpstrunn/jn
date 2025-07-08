@@ -1,15 +1,114 @@
 #!/usr/bin/env bash
 
-source "$(dirname "$(dirname "$(realpath "$0")")")/lib/files.sh"
-source "$(dirname "$(dirname "$(realpath "$0")")")/lib/text.sh"
-source "$(dirname "$(dirname "$(realpath "$0")")")/lib/variables.sh"
+ZK_PATH=${ZK_PATH:-$HOME/.zk/}
+ZK_TEMPLATE=${ZK_TEMPLATE:-$ZK_PATH/templates/}
+mapfile -t ZK_WORKSPACES < <(find "$ZK_PATH" -type d)
 
-function zk() {
-  if [[ "$DIR" -eq 1 ]]; then
-    display_workspaces
+if [ ! -d "$ZK_PATH" ]; then
+  mkdir -p "$ZK_PATH"
+fi
+
+RED="$(tput setaf 196)"
+GREEN="$(tput setaf 82)"
+BLUE="$(tput setaf 87)"
+
+function _text() {
+  local color text reset
+  color=$1
+  text=$2
+  reset=$(tput sgr0)
+
+  echo -e "${color}${text}${reset}"
+}
+
+function _error() {
+  local message=$1
+
+  _text "$RED" "Error: $message"
+}
+
+function display_all_files() {
+  local workspace=$1
+
+  find "$ZK_PATH/$workspace" -type f | sed -E "s|$ZK_PATH\/||"
+}
+
+function display_workspaces() {
+  printf '%s\n' "${ZK_WORKSPACES[@]}"
+}
+
+function _fzf() {
+  local workspace=$1
+  local zk_files=()
+  local open_files=()
+  mapfile -t zk_files < <(display_all_files "$workspace" | fzf -m --preview "bat $ZK_PATH/{+}")
+
+  for file in "${zk_files[@]}"; do
+    open_files+=("$HOME/.zk/$file")
+  done
+  $EDITOR "${open_files[@]}"
+}
+
+function add_note() {
+  local file=$1
+  local zk_workspace=$2
+
+  [[ -z "$file" ]] && {
+    _error "No file specified!"
+    exit 1
+  }
+  [[ -z "$zk_workspace" ]] && zk_workspace=$(display_workspaces | fzf --preview "eza -la $ZK_PATH/{}")
+  touch "$zk_workspace/$file.md" && $EDITOR "$file.md"
+}
+
+function _apply_template() {
+  local template="$ZK_TEMPLATE/$1"
+  local destination=$2
+
+  if [ ! -f "$destination" ]; then
+    if [ ! -f "$template" ]; then
+      touch "$destination"
+    else
+      cat "$template" >>"$destination"
+    fi
   else
-    display_all_files
+    return 0
   fi
+}
+
+function _journal_frontmatter_parser() {
+  local date=$1
+  local destination=$2
+
+  sed -i "s/{{title}}/$date/g" "$destination"
+}
+
+function journal() {
+  local requested_date=$1
+  local zk_workspace=$2
+  local get_week date
+  local is_journal=1
+  local val
+
+  if [[ "$requested_date" == "day" ]]; then
+    date=$(date +%F)
+  elif [[ "$requested_date" == "month" ]]; then
+    date="$(date +%Y-%m)"
+  elif [[ "$requested_date" == "week" ]]; then
+    get_week=$(echo "$(date +%V) + 1" | bc)
+    date="$(date +%Y)-W$get_week"
+  elif [[ "$requested_date" == "year" ]]; then
+    date=$(date +%Y)
+  else
+    _error "No date specified!"
+    echo "Usage: zk journal day/week/month/year workspace"
+    exit 1
+  fi
+  [[ -z "$zk_workspace" ]] && zk_workspace=$(display_workspaces | fzf --preview "eza -la $ZK_PATH/{}")
+  _apply_template "$requested_date.md" "$zk_workspace/$date.md" "$is_journal"
+  val=$?
+  _journal_frontmatter_parser "$date" "$zk_workspace/$date.md"
+  [[ "$val" -eq 0 ]] && $EDITOR "$zk_workspace/$date.md"
 }
 
 while getopts ":hd" opt; do
@@ -30,6 +129,28 @@ done
 
 shift $((OPTIND - 1))
 
-if [[ "$(basename "$0")" =~ zk$ ]]; then
-  zk
-fi
+case "$1" in
+help)
+  help
+  exit 0
+  ;;
+fzf)
+  shift
+  _fzf "$@" # workspace
+  ;;
+add)
+  shift
+  add_note "$@" # filename, workspace
+  ;;
+journal)
+  shift
+  journal "$@" # date, workspace
+  ;;
+*)
+  if [[ "$DIR" -eq 1 ]]; then
+    display_workspaces
+  else
+    display_all_files
+  fi
+  ;;
+esac

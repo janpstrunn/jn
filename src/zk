@@ -12,6 +12,27 @@ RED="$(tput setaf 196)"
 GREEN="$(tput setaf 82)"
 BLUE="$(tput setaf 87)"
 
+function help() {
+  cat <<EOF
+zk | A Zettelkasten Helper
+
+Usage:
+  zk FLAG <FLAG_INPUT> COMMAND INPUT
+  zk -h | zk help
+
+Commands:
+add FILENAME WORKSPACE       Add new note
+fzf WORKSPACE                Search all files with fzf
+journal DATE WORKSPACE       Add new journal entry
+list -d                      List all files
+
+Flags:
+-h            Displays this message and exits
+--help        Displays this message and exits
+-d            Search directories
+EOF
+}
+
 function _text() {
   local color text reset
   color=$1
@@ -37,6 +58,15 @@ function _display_workspaces() {
   printf '%s\n' "${ZK_WORKSPACES[@]}"
 }
 
+function _list() {
+  if [[ "$DIR" -eq 1 ]]; then
+    _display_workspaces
+  else
+    _display_all_files
+  fi
+  exit 0
+}
+
 function _fzf_files() {
   local workspace=$1
   local zk_files=()
@@ -47,6 +77,7 @@ function _fzf_files() {
     open_files+=("$HOME/.zk/$file")
   done
   $EDITOR "${open_files[@]}"
+  exit 0
 }
 
 function _add_note() {
@@ -59,6 +90,7 @@ function _add_note() {
   }
   [[ -z "$zk_workspace" ]] && zk_workspace=$(_display_workspaces | fzf --preview "eza -la $ZK_PATH/{}")
   touch "$zk_workspace/$file.md" && $EDITOR "$file.md"
+  exit 0
 }
 
 function _apply_template() {
@@ -138,13 +170,17 @@ function _add_journal_entry() {
   val=$?
   _journal_parser "$date" "$workspace/$filename.md"
   [[ "$val" -eq 0 ]] && $EDITOR "$workspace/$filename.md"
+  exit 0
 }
 
-while getopts ":hd" opt; do
+while getopts ":hd-" opt; do
   case "$opt" in
   h)
     help
     exit 0
+    ;;
+  -)
+    break
     ;;
   d)
     DIR=1
@@ -158,28 +194,29 @@ done
 
 shift $((OPTIND - 1))
 
-case "$1" in
-help)
-  help
-  exit 0
-  ;;
-fzf)
-  shift
-  _fzf_files "$@" # workspace
-  ;;
-add)
-  shift
-  _add_note "$@" # filename, workspace
-  ;;
-journal)
-  shift
-  _add_journal_entry "$@" # date, workspace
-  ;;
-*)
-  if [[ "$DIR" -eq 1 ]]; then
-    _display_workspaces
-  else
-    _display_all_files
-  fi
-  ;;
-esac
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --help)
+    help
+    exit 0
+    ;;
+  fzf)
+    shift
+    _fzf_files "$@" # workspace
+    ;;
+  add)
+    shift
+    _add_note "$@" # filename, workspace
+    ;;
+  journal)
+    shift
+    _add_journal_entry "$@" # date, workspace
+    ;;
+  list)
+    _list
+    ;;
+  *)
+    _list
+    ;;
+  esac
+done

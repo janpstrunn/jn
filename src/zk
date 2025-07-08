@@ -27,9 +27,10 @@ $(_text "$BLUE" "Commands")
   list                         List all files
 
 $(_text "$BLUE" "Flags")
+  -d            Search directories
   -h            Displays this message and exits
   --help        Displays this message and exits
-  -d            Search directories
+  -n            Do not edit
 EOF
 }
 
@@ -68,8 +69,9 @@ function _list() {
 }
 
 function _fzf_files() {
-  local zk_files=()
+  local files
   local open_files=()
+  local zk_files=()
 
   if [ -n "$1" ]; then
     workspace="$1"
@@ -89,7 +91,13 @@ function _fzf_files() {
   for file in "${zk_files[@]}"; do
     open_files+=("$HOME/.zk/$file")
   done
-  $EDITOR "${open_files[@]}"
+  if [[ "$NO_EDIT" -eq 1 ]]; then
+    for files in "${open_files[@]}"; do
+      echo "$files"
+    done
+  else
+    $EDITOR "${open_files[@]}"
+  fi
   exit 0
 }
 
@@ -186,11 +194,19 @@ function _add_journal_entry() {
   _apply_template "$requested_date.md" "$workspace/$filename.md" "$is_journal"
   val=$?
   _journal_parser "$date" "$workspace/$filename.md"
-  [[ "$val" -eq 0 ]] && $EDITOR "$workspace/$filename.md"
+  [[ "$val" -eq 0 ]] || {
+    _error "An unknown error occurred!"
+    exit 1
+  }
+  if [[ "$NO_EDIT" -ne 1 ]]; then
+    $EDITOR "$workspace/$filename.md"
+  else
+    _text "$GREEN" "Created journal entry: $date"
+  fi
   exit 0
 }
 
-while getopts ":hd-" opt; do
+while getopts ":hd-n" opt; do
   case "$opt" in
   h)
     help
@@ -198,6 +214,9 @@ while getopts ":hd-" opt; do
     ;;
   -)
     break
+    ;;
+  n)
+    NO_EDIT=1
     ;;
   d)
     DIR=1

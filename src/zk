@@ -70,11 +70,16 @@ function _list() {
 function _fzf_files() {
   local zk_files=()
   local open_files=()
-  mapfile -t zk_files < <(_display_all_files "$workspace" | fzf -m --preview "bat $ZK_PATH/{+}")
 
   if [ -n "$1" ]; then
     workspace="$ZK_PATH/$1"
   fi
+
+  if [ -z "$workspace" ]; then
+    _error "Workspace $1 does not exist"
+  fi
+
+  mapfile -t zk_files < <(_display_all_files "$workspace" | fzf -m --preview "bat $ZK_PATH/{+}")
 
   for file in "${zk_files[@]}"; do
     open_files+=("$HOME/.zk/$file")
@@ -151,6 +156,7 @@ function _add_journal_entry() {
 
   if [ -n "$2" ]; then
     workspace="$ZK_PATH/$2"
+    mkdir -p "$workspace"
   fi
 
   _get_dates

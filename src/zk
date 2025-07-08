@@ -24,7 +24,7 @@ $(_text "$BLUE" "Commands")
   add FILENAME WORKSPACE       Add new note
   fzf WORKSPACE                Search all files with fzf
   journal DATE WORKSPACE       Add new journal entry
-  list -d                      List all files
+  list                         List all files
 
 $(_text "$BLUE" "Flags")
   -h            Displays this message and exits

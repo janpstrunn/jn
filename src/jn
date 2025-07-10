@@ -72,23 +72,36 @@ function _list() {
   exit 0
 }
 
-function _fzf() {
-  HEADER="A-a: Select All / A-s: Deselect All / C-p: Preview / A-d: Delete / C-r: Ripgrep (Multi-select) / C-l: Fzf"
-  PROMPT="Choose a file to read: "
-  DELETE_BIND="Alt-d:execute(echo -n 'Delete {+} [y/N]? ' && read -r yn && [[ \$yn =~ ^[Yy]$ ]] && rm {+})+reload(ls)"
-  LS_RELOAD="reload(find '$JN_PATH/$workspace' -type f | sed -E 's|$JN_PATH\/||')+change-preview(bat --color=always $JN_PATH/$workspace{})"
+# shellcheck disable=SC2120
+function _rg() {
+  HEADER="A-a: Select All / A-s: Deselect All / C-p: Preview"
   RG_RELOAD="reload(rg --column --color=always --smart-case {q} $JN_PATH/$workspace | sed \"s|$JN_PATH/||\" || :)+change-preview(bat --color=always --highlight-line {2} $JN_PATH/$workspace{1} || bat --style=full --color=always $JN_PATH/$workspace{1})+change-preview-window(~4,+{2}+4/3,<80(up))"
-  _display_all_files "$workspace" | fzf --disabled --ansi --multi --tmux 88% \
+  # shellcheck disable=SC2016
+  fzf --disabled --ansi --multi \
+    --bind 'alt-a:select-all,alt-d:deselect-all,ctrl-p:toggle-preview' \
+    --bind "start:$RG_RELOAD" --bind "change:$RG_RELOAD" \
+    --delimiter : \
+    --header "$HEADER" \
+    --preview 'bat --style=full --color=always --highlight-line {2} {1}' \
+    --preview-window '~4,+{2}+4/3,<80(up)' \
+    --prompt "$PROMPT" \
+    --query "$*"
+}
+
+# shellcheck disable=SC2120
+function _fzf() {
+  HEADER="A-a: Select All / A-s: Deselect All / C-p: Preview / A-d: Delete"
+  DELETE_BIND="Alt-d:execute(echo -n 'Delete {+} [y/N]? ' && read -r yn && [[ \$yn =~ ^[Yy]$ ]] && rm $JN_PATH/$workspace/{+})"
+  # shellcheck disable=SC2016
+  _display_all_files "$workspace" | fzf --ansi --multi --tmux 88% \
     --bind "$DELETE_BIND" \
     --bind 'alt-a:select-all,alt-s:deselect-all,ctrl-p:toggle-preview' \
-    --bind "ctrl-l:$LS_RELOAD" \
-    --bind "ctrl-r:$RG_RELOAD" \
-    --bind "enter:execute:$OPENER" \
     --delimiter : \
     --header "$HEADER" \
     --preview "bat --color=always $JN_PATH/$workspace{}" \
     --preview-window up:65% \
-    --prompt "$PROMPT"
+    --prompt "$PROMPT" \
+    --query "$*"
 }
 
 function _fzf_files() {
@@ -105,7 +118,14 @@ function _fzf_files() {
     exit 1
   fi
 
-  mapfile -t jn_files < <(_fzf)
+  PROMPT="Choose a file to read: "
+  if [[ "$FZF_MODE" -eq 1 ]]; then
+    # shellcheck disable=SC2119
+    mapfile -t jn_files < <(_fzf)
+  else
+    # shellcheck disable=SC2119
+    mapfile -t jn_files < <(_rg | awk -F ':' '{print $1}')
+  fi
 
   if [ -z "${jn_files[*]}" ]; then
     exit 1 # Silent quit
@@ -259,8 +279,14 @@ while [[ $# -gt 0 ]]; do
     help
     exit 0
     ;;
+  rg)
+    shift
+    FZF_MODE=0
+    _fzf_files "$@" # workspace
+    ;;
   fzf)
     shift
+    FZF_MODE=1
     _fzf_files "$@" # workspace
     ;;
   add)

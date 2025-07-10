@@ -25,6 +25,7 @@ $(_text "$BLUE" "Commands")
   fzf WORKSPACE                Search all files with fzf
   journal DATE WORKSPACE       Add new journal entry
   list                         List all files
+  rg WORKSPACE                 Search with fzf and rg
 
 $(_text "$BLUE" "Flags")
   -h            Displays this message and exits

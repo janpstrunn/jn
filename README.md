@@ -38,10 +38,11 @@ Usage:
   jn -h | jn help
 
 Commands:
-  add FILENAME WORKSPACE       Add a new note
-  fzf WORKSPACE               Search all files with fzf
-  journal DATE WORKSPACE      Add a new journal entry
-  list                        List all files
+  add FILENAME WORKSPACE       Add new note
+  fzf WORKSPACE                Search all files with fzf
+  journal DATE WORKSPACE       Add new journal entry
+  list                         List all files
+  rg WORKSPACE                 Search with fzf and rg
 
 Flags:
   -h            Displays this message and exits

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-JN_PATH=${JN_PATH:-$HOME/.jn/}
+JN_PATH=${JN_PATH:-$HOME/.jn}
 JN_TEMPLATE=${JN_TEMPLATE:-$JN_PATH/templates/}
 mapfile -t jn_WORKSPACES < <(find "$JN_PATH" -type d)
 
@@ -72,6 +72,25 @@ function _list() {
   exit 0
 }
 
+function _fzf() {
+  HEADER="A-a: Select All / A-s: Deselect All / C-p: Preview / A-d: Delete / C-r: Ripgrep (Multi-select) / C-l: Fzf"
+  PROMPT="Choose a file to read: "
+  DELETE_BIND="Alt-d:execute(echo -n 'Delete {+} [y/N]? ' && read -r yn && [[ \$yn =~ ^[Yy]$ ]] && rm {+})+reload(ls)"
+  LS_RELOAD="reload(find '$JN_PATH/$workspace' -type f | sed -E 's|$JN_PATH\/||')+change-preview(bat --color=always $JN_PATH/$workspace{})"
+  RG_RELOAD="reload(rg --column --color=always --smart-case {q} $JN_PATH/$workspace | sed \"s|$JN_PATH/||\" || :)+change-preview(bat --color=always --highlight-line {2} $JN_PATH/$workspace{1} || bat --style=full --color=always $JN_PATH/$workspace{1})+change-preview-window(~4,+{2}+4/3,<80(up))"
+  _display_all_files "$workspace" | fzf --disabled --ansi --multi --tmux 88% \
+    --bind "$DELETE_BIND" \
+    --bind 'alt-a:select-all,alt-s:deselect-all,ctrl-p:toggle-preview' \
+    --bind "ctrl-l:$LS_RELOAD" \
+    --bind "ctrl-r:$RG_RELOAD" \
+    --bind "enter:execute:$OPENER" \
+    --delimiter : \
+    --header "$HEADER" \
+    --preview "bat --color=always $JN_PATH/$workspace{}" \
+    --preview-window right:55% \
+    --prompt "$PROMPT"
+}
+
 function _fzf_files() {
   local files
   local open_files=()
@@ -86,7 +105,7 @@ function _fzf_files() {
     exit 1
   fi
 
-  mapfile -t jn_files < <(_display_all_files "$workspace" | fzf -m --preview "bat $JN_PATH/{+}")
+  mapfile -t jn_files < <(_fzf)
 
   if [ -z "${jn_files[*]}" ]; then
     exit 1 # Silent quit

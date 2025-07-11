@@ -2,7 +2,7 @@
 
 JN_PATH=${JN_PATH:-$HOME/.jn}
 JN_TEMPLATE=${JN_TEMPLATE:-$JN_PATH/templates/}
-mapfile -t jn_WORKSPACES < <(find "$JN_PATH" -type d)
+mapfile -t JN_WORKSPACES < <(find -L "$JN_PATH" -maxdepth 1 -type d -not -path '*.git*')
 
 if [ ! -d "$JN_PATH" ]; then
   mkdir -p "$JN_PATH"
@@ -59,7 +59,7 @@ function _display_all_files() {
 }
 
 function _display_workspaces() {
-  printf '%s\n' "${jn_WORKSPACES[@]}"
+  printf '%s\n' "${JN_WORKSPACES[@]}"
 }
 
 function _list() {
@@ -157,14 +157,23 @@ function _add_note() {
     _error "No file specified!"
     exit 1
   }
-  [[ -z "$jn_workspace" ]] && jn_workspace=$(_display_workspaces | fzf --preview "eza -la $JN_PATH/{}")
-  touch "$jn_workspace/$file.md" && $EDITOR "$file.md"
+
+  if [[ -z "$jn_workspace" ]]; then
+    jn_workspace=$(_display_workspaces | fzf --preview "eza -la $JN_PATH/{}")
+  else
+    jn_workspace="$JN_PATH/$jn_workspace"
+  fi
+
+  _apply_template "$jn_workspace/$file.md"
+  val=$?
+  _template_variable_parser "$jn_workspace/$file.md"
+  [[ "$val" -eq 0 ]] && $EDITOR "$jn_workspace/$file.md"
   exit 0
 }
 
 function _apply_template() {
-  local template="$JN_TEMPLATE/$1"
-  local destination=$2
+  local destination=$1
+  template="${template:-$JN_TEMPLATE/$2}"
 
   if [ ! -f "$destination" ]; then
     if [ ! -f "$template" ]; then
@@ -177,18 +186,25 @@ function _apply_template() {
   fi
 }
 
-function _journal_parser() {
-  local date=$1
-  local destination=$2
+function _template_variable_parser() {
+  local destination=$1
   local replacements sed_script
+  local file_name file_name_without_ext file_name_with_spaces title
+  file_name=$(basename "$destination")
+  file_name_without_ext="${file_name%.md}"
+  file_name_with_spaces="${file_name_without_ext//-/ }"
+  title=$(echo "$file_name_with_spaces" | awk '{for (i=1; i<=NF; i++) $i=toupper(substr($i,1,1)) substr($i,2)} 1')
 
   declare -A replacements=(
-    ["{{title}}"]="$filename"
     ["{{day}}"]="$day"
-    ["{{week}}"]="$week"
+    ["{{filename}}"]="$filename"
     ["{{month}}"]="$month"
-    ["{{year}}"]="$year"
+    ["{{time}}"]="$time"
+    ["{{title}}"]="$filename"
+    ["{{title}}"]="$title"
+    ["{{week}}"]="$week"
     ["{{workspace}}"]="$workspace"
+    ["{{year}}"]="$year"
   )
 
   sed_script=""
@@ -205,13 +221,13 @@ function _journal_parser() {
 function _get_dates() {
   day=$(date +%F)
   month="$(date +%Y-%m)"
+  time=$(date +%H:%M)
   week="$(date +%Y)-W$(echo "$(date +%V) + 1" | bc)"
   year=$(date +%Y)
 }
 
 function _add_journal_entry() {
   local date
-  local is_journal=1
   local requested_date=$1
   local val
 
@@ -239,9 +255,9 @@ function _add_journal_entry() {
   [[ -z "$workspace" ]] && workspace=$(_display_workspaces | fzf --preview "eza -la $JN_PATH/{}")
 
   filename="$date"
-  _apply_template "$requested_date.md" "$workspace/$filename.md" "$is_journal"
+  _apply_template "$workspace/$filename.md" "$requested_date.md"
   val=$?
-  _journal_parser "$date" "$workspace/$filename.md"
+  _template_variable_parser "$workspace/$filename.md"
   [[ "$val" -eq 0 ]] || {
     _error "An unknown error occurred!"
     exit 1
@@ -254,7 +270,7 @@ function _add_journal_entry() {
   exit 0
 }
 
-while getopts ":hw-n" opt; do
+while getopts ":hw-nt:" opt; do
   case "$opt" in
   h)
     help
@@ -268,6 +284,9 @@ while getopts ":hw-n" opt; do
     ;;
   w)
     DIR=1
+    ;;
+  t)
+    template="$JN_TEMPLATE/$OPTARG.md"
     ;;
   ?)
     _text "$RED" "Error: Invalid option '-$OPTARG'" >&2
